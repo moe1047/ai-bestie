@@ -55,10 +55,36 @@ python3 main.py
 ```
 
 ### Telegram Bot
-Start the Telegram bot interface:
+
+#### Option 1: Polling Mode
+Start the Telegram bot in polling mode:
 ```bash
 python3 run_telegram_bot.py
 ```
+
+#### Option 2: Webhook Mode (Recommended for Production)
+
+1. Install ngrok:
+   ```bash
+   # macOS (using Homebrew)
+   brew install ngrok
+   # Or download from https://ngrok.com/download
+   ```
+
+2. Start the FastAPI server:
+   ```bash
+   uvicorn ui.telegram.app:app --host 0.0.0.0 --port 8000
+   ```
+
+3. In a new terminal, start ngrok:
+   ```bash
+   ngrok http 8000
+   ```
+
+4. Copy the ngrok HTTPS URL (e.g., https://your-ngrok-url.ngrok.io) and set it as your Telegram webhook:
+   ```bash
+   curl -F "url=https://your-ngrok-url.ngrok.io/webhook" https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook
+   ```
 
 ## Dependencies
 
@@ -66,6 +92,8 @@ python3 run_telegram_bot.py
 - LangChain
 - LangGraph
 - Groq LLM integration
+- FastAPI
+- uvicorn
 - Pydantic
 - python-dotenv
 - python-telegram-bot
