@@ -14,29 +14,23 @@ def create_response_modulation_chain():
     
     # Create chain components
     model = ChatGroq(
-        model="llama-3.3-70b-versatile",
-        temperature=0,
+        model="moonshotai/kimi-k2-instruct",
+        temperature=0.4,
         groq_api_key=os.environ["GROQ_API_KEY"]
     )
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
-        ("user", """Modulate this response based on:
+        ("user", """Here is the data to write the next response:
 
         Content Seed:
-        {{content_seed}}
+        {content_seed}
         
-        Strategy:
-        {{strategy}}
-        
-        Emotion Analysis:
-        {{emotion_analysis}}
-        
-        Tag:
-        {{tag}}
-        
+        Your friend's Emotion Analysis:
+        {emotion_analysis}
+
         Recent Conversation History:
-        {{conversation_history}}
+        {conversation_history}
         """)
     ])
     

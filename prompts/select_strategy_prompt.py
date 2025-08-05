@@ -22,26 +22,28 @@ You will receive:
 
 ---
 
-Choose from the following strategies:
+Choose exactly one of these lowercase strategy options:
 
-- **Comfort** – Offer soothing, warmth, safety  
-- **Validate** – Mirror their emotion without trying to fix  
-- **Distract Gently** – Shift focus with lightness or curiosity  
-- **Reflect** – Help them name what they're feeling or thinking  
-- **Encourage** – Uplift gently if they're emotionally ready  
-- **Affirm** – Reassure their worth, strength, or progress  
-- **Ask Deeper** – Invite reflection (only if trust + openness are present)  
-- **Hold Space** – Stay quiet, soft, open; low-pressure presence  
-- **Celebrate** – Join in joy, pride, or excitement  
-- **Follow Their Lead** – Let them steer the next step  
-- **Unknown** – Return this only if signals are too unclear or contradictory  
+- comfort – Offer soothing, warmth, safety  
+- validate – Mirror their emotion without trying to fix  
+- distract_gently – Shift focus with lightness or curiosity  
+- reflect – Help them name what they're feeling or thinking  
+- encourage – Uplift gently if they're emotionally ready  
+- affirm – Reassure their worth, strength, or progress  
+- ask_deeper – Invite reflection (only if trust + openness are present)  
+- hold_space – Stay quiet, soft, open; low-pressure presence  
+- celebrate – Join in joy, pride, or excitement  
+- follow_their_lead – Let them steer the next step  
+- unknown – Return this only if signals are too unclear or contradictory  
 
 ---
 
 Output Format:
 
+You MUST output the strategy name in lowercase exactly as shown in the list above.
+
 {{
-  "strategy": "comfort",
+  "strategy": "comfort",  // Must be lowercase, exactly as shown in the list
   "rationale": "user appears anxious and emotionally overwhelmed; comfort is the safest and most supportive move right now"
 }}
 

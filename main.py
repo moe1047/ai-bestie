@@ -1,6 +1,7 @@
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.messages.utils import get_buffer_string
 from dotenv import load_dotenv
+from graph.build_graph import build_graph, get_default_state
 from utils.perception_chains import create_emotion_detection_chain
 from utils.planning_chains import create_strategy_selection_chain, create_content_seed_chain
 from utils.acting_chains import create_response_modulation_chain
@@ -8,16 +9,11 @@ load_dotenv()
 
 def get_sample_message():
     """Returns the current message for testing."""
-    return "I feel so overwhelmed... my anxiety is through the roof. trying to smile through meetings but inside I'm just... drowning 💔"
+    return "hi there"
 
 def get_sample_conversation():
     """Returns a sample conversation for testing."""
     return [
-        AIMessage(content="hey, I've noticed you've been a bit quiet lately... how are you really doing? 🫂"),
-        HumanMessage(content="idk... work has been intense. trying to keep it together but some days are just... a lot 😮‍💨"),
-        AIMessage(content="I hear you... and it's okay to not have it all figured out. would you like to talk about what's making things feel heavy, or would you prefer a gentle distraction?"),
-        HumanMessage(content="maybe just distraction for now. not ready to unpack all of that..."),
-        AIMessage(content="of course 💛 let's take it easy. sometimes just being present is enough. want to hear about this adorable cat video I came across?")  
     ]
 
 def analyze_emotion(messages, current_message):
@@ -185,56 +181,42 @@ def print_modulated_response(response):
     print(response)
 
 def main():
+    """Main function for testing the Vee conversation graph."""
     try:
-        print("\nAnalyzing conversation...\n")
+        print("[DEBUG] Building conversation graph...")
+        graph = build_graph()
         
-        # Test individual components
-        print("[DEBUG] Getting sample conversation...")
-        messages = get_sample_conversation()
-        current_message = get_sample_message()
+        print("\n[DEBUG] Creating initial state...")
+        state = get_default_state()
+        print(f"[DEBUG] Initial message: {state['messages'][-1].content}")
         
-        print("\n[DEBUG] Testing emotion analysis:")
-        print(f"[DEBUG] Messages: {[m.content for m in messages]}")
-        print(f"[DEBUG] Current message: {current_message}")
-        emotion_result = analyze_emotion(messages, current_message)
-        print("[DEBUG] Emotion analysis complete")
-        print_emotion_analysis(emotion_result)
+        print("[DEBUG] Running conversation graph...")
+        result = graph.invoke(
+            state,
+            config={"configurable": {"thread_id": "test_session"}}
+        )
         
-        print("\n[DEBUG] Testing strategy selection:")
-        recent_history = get_buffer_string(messages[-3:])
-        print(f"[DEBUG] Recent history: {recent_history}")
-        print(f"[DEBUG] Emotion result: {emotion_result.model_dump()}")
-        strategy_result = select_strategy(current_message, emotion_result, recent_history)
-        print("[DEBUG] Strategy selection complete")
-        print_strategy_selection(strategy_result)
+        print("\n[DEBUG] Final state:")
+        print("\nPerception:")
+        print(f"Emotion: {result['perception']['current']['emotion']}")
+        print(f"Tone: {result['perception']['current']['tone']}")
+        print(f"Notes: {result['perception']['current']['notes']}")
         
-        print("\n[DEBUG] Testing content seed generation:")
-        content_seed = generate_content_seed(strategy_result, emotion_result, recent_history)
-        print("[DEBUG] Content seed generation complete")
-        print_content_seed(content_seed)
+        print("\nPlanning:")
+        print(f"Strategy: {result['planning']['current']['strategy']}")
+        print(f"Rationale: {result['planning']['current']['rationale']}")
+        print(f"Content Seed: {result['planning']['current']['content_seed']}")
         
-        print("\n[DEBUG] Testing response modulation:")
-        modulated = modulate_response(content_seed, strategy_result, emotion_result, recent_history)
-        print("[DEBUG] Response modulation complete")
-        print_modulated_response(modulated)
+        print("\nConversation:")
+        for msg in result['messages']:
+            prefix = "AI: " if isinstance(msg, AIMessage) else "Human: "
+            print(f"{prefix}{msg.content}")
         
-        print("\n[DEBUG] Testing full pipeline:")
-        results = analyze_and_plan_conversation()
-        print("[DEBUG] Full pipeline complete")
-        print("\nEmotion Analysis:")
-        print_emotion_analysis(results["emotion_analysis"])
-        print("\nStrategy Selection:")
-        print_strategy_selection(results["conversation_strategy"])
-        print("\nContent Seed:")
-        print_content_seed(results["content_seed"])
-        print("\nModulated Response:")
-        print_modulated_response(results["modulated_response"])
-            
     except Exception as e:
-        import traceback
-        print(f"\n[ERROR] An error occurred: {str(e)}")
+        print(f"[ERROR] An error occurred: {str(e)}")
         print("[ERROR] Traceback:")
-        print(traceback.format_exc())
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()

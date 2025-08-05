@@ -35,7 +35,7 @@ The conversation pipeline consists of three main phases:
    ```bash
    pip install -r requirements.txt
    ```
-3. Set up your environment variables:
+3. Set up your environment variables:eed 
    ```bash
    GROQ_API_KEY=your_api_key_here
    ```

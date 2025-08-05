@@ -1,0 +1,15 @@
+{
+  "dockerfile_lines": [],
+  "graphs": {
+    "conversation": "graph.build_graph:build_graph"
+  },
+  "env": ".env",
+  "python_version": "3.12",
+  "dependencies": [
+    "langchain",
+    "groq",
+    "python-telegram-bot",
+    "fastapi",
+    "uvicorn"
+  ]
+}

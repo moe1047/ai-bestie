@@ -2,6 +2,10 @@ from langchain_groq import ChatGroq
 from langchain.prompts import ChatPromptTemplate
 from langchain.output_parsers import PydanticOutputParser
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 from prompts.detect_emotion_prompt import get_emotion_detection_system_prompt
 from models.perception import EmotionAnalysisResult
