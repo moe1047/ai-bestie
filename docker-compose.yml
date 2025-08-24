@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:latest
+    container_name: nginx_server
+    ports:
+      - "80:90"
+      - "443:443"
+    volumes:
+      - ./nginx/${NGINX_CONF:-local.conf}:/etc/nginx/conf.d/default.conf
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    depends_on:
+      - ai_bestie
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+
+  ai_bestie:
+    build: .
+    container_name: ai_bestie_app
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data:/app/data

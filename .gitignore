@@ -48,3 +48,10 @@ htmlcov/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+
+# Runtime data
+data/
+
+# Docker & Deployment
+certbot/
+nginx/default.conf

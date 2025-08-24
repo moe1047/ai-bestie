@@ -112,7 +112,7 @@ class SessionManager:
                 "phone_number": None,
                 "chat_id": str(chat_id)
             },
-            "perception": {
+            "sensing": {
                 "current": {
                     "emotion": None,
                     "tone": None,

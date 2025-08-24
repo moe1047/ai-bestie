@@ -20,9 +20,9 @@ async def keep_typing(telegram_client, chat_id, interval=4):
 
 
 class TelegramHandler:
-    def __init__(self, telegram_client: TelegramClient):
+    def __init__(self, telegram_client: TelegramClient, checkpointer):
         self.telegram_client = telegram_client
-        self.graph = build_graph()
+        self.graph = build_graph(checkpointer)
 
     async def handle_update(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.message is None:
@@ -47,7 +47,7 @@ class TelegramHandler:
             # Pass user's message directly to the graph as input
             input_data = {
                 "messages": [],
-                "perception": {
+                "sensing": {
                     "current": {
                         "emotion": None,
                         "tone": None,
@@ -99,7 +99,7 @@ class TelegramHandler:
                 config={"configurable": {"thread_id": str(chat_id)}},
                 stream_mode="messages",
             ):
-                last_node = chunk[1]["langgraph_node"]
+                pass
 
         finally:
             typing_task.cancel()
@@ -110,8 +110,7 @@ class TelegramHandler:
 
         # Get final response from persisted state
         output_state = await self.graph.aget_state(config={"configurable": {"thread_id": str(chat_id)}})
-        messages = output_state.values.get("messages", [])
+        final_draft = output_state.values.get("draft")
 
-        if messages and isinstance(messages[-1], AIMessage):
-            ai_response = messages[-1].content
-            await self.telegram_client.send_message(chat_id, ai_response)
+        if final_draft:
+            await self.telegram_client.send_message(chat_id, final_draft)

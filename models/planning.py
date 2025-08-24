@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Literal
+from typing import Optional, Literal, Union
 
 class ConversationStrategy(BaseModel):
     """Model for conversation strategy selection results.
@@ -27,3 +27,19 @@ class ContentSeed(BaseModel):
         'use_distraction_card', 'offer_pause', 'ask_safe_question',
         'shift_topic_gently', 'continue_softly'
     ]] = None
+
+class PlanningResult(BaseModel):
+    """Model for conversation planning results.
+    
+    Attributes:
+        strategy: One of the defined conversation strategies
+        question: Optional question to ask the user
+        high_emotion: Whether the user is experiencing high emotional intensity
+        notes: Additional notes or context about the plan
+    """
+    strategy: Literal[
+        'reflect', 'validate', 'clarify', 'reframe', 'advise', 'inform', 'research'
+    ]
+    question: Optional[str] = None
+    high_emotion: bool
+    notes: str
