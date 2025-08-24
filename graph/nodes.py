@@ -14,7 +14,7 @@ import json
 import re
 
 # Import the Vee IR graph builder and its state
-from vee_ir import build_graph as build_vee_ir_graph, VeeIRState as VeeIRGraphState
+from .vee_ir import build_graph as build_vee_ir_graph, VeeIRState as VeeIRGraphState
 
 # Helper Functions
 # =========================================================================
