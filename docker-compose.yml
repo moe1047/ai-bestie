@@ -14,13 +14,6 @@ services:
     depends_on:
       - ai_bestie
 
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    volumes:
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
-
   ai_bestie:
     build: .
     container_name: ai_bestie_app
