@@ -10,7 +10,7 @@ def main():
     uvicorn.run(
         "ui.telegram.app:app",
         host="0.0.0.0",  # Listen on all network interfaces
-        port=8001,
+        port=8002,
         reload=True  # Enable auto-reload during development
     )
 

@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app with lifespan
 app = FastAPI(
-    title="Vee Telegram Bot",
+    title="Vee",
     description="Telegram webhook for Vee AI companion",
     lifespan=lifespan
 )

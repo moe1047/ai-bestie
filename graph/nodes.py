@@ -144,13 +144,14 @@ async def vee_information_guardian(state: VeeState) -> VeeState:
         "files": [], # Future: Populate from main state
         "memories": [], # Future: Populate from main state
         "conversation_history": state.get("messages", [])[-5:], # Pass last 5 messages
+        "user_intent": state.get("user_intent", "Fact/Definition"), # Pass classified intent
     }
 
     # 4. Invoke the sub-graph asynchronously
     final_ir_state = await vee_ir_app.ainvoke(ir_input_state, {"recursion_limit": 10})
 
-    # 5. Store the structured answer in the main graph's state
-    state["information_response"] = final_ir_state.get("structured_answer")
+    # 5. Store the final answer in the main graph's state
+    state["information_response"] = final_ir_state.get("final_answer")
 
     print("---VEE INFORMATION GUARDIAN FINISHED---")
     return state
@@ -158,17 +159,20 @@ async def vee_information_guardian(state: VeeState) -> VeeState:
 def assistant_drafter_node(state: dict) -> dict:
     """Invokes the assistant drafter chain to generate a response from research."""
     print("---RUNNING ASSISTANT DRAFTER---")
-    # The structured response from the IR agent is the 'expert draft'
-    information_response = state.get("information_response", {})
-    expert_draft = information_response.get("answer", "")
-    if not expert_draft:
-        # If there's nothing to draft, return early
+    # The 'information_response' is now the raw text from the IR agent.
+    information_response = state.get("information_response")
+
+    # If the Information Guardian provided a response, just pass it through.
+    if information_response:
+        print("---PASSING IR RESPONSE THROUGH DRAFTER---")
+        state["draft"] = information_response
         return state
 
+    # Otherwise, run the standard drafting process (this part is now unused in the IR flow)
     drafter_chain = get_assistant_drafter_chain()
-    history = state.get("messages", [])[-5:] # Pass last 5 messages
+    history = state.get("messages", [])[-5:]
+    expert_draft = ""
 
-    # The final draft is saved back to the 'draft' key for the reviewer
     state["draft"] = drafter_chain.invoke(
         {"expert_draft": expert_draft, "conversation_history": history}
     )
