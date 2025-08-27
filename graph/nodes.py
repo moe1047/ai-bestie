@@ -66,7 +66,7 @@ def mode_decider_node(state: VeeState) -> VeeState:
 
     # Prepare the input for the chain
     sensing_data = json.dumps(state.get("sensing", {}), indent=2)
-    conversation_history = "\n".join([f"{msg.type}: {msg.content}" for msg in state.get("messages", [])])
+    conversation_history = "\n".join([f"{msg.type}: {msg.content}" for msg in state.get("messages", [])[-5:]])
     latest_user_message = state.get("last_user_text", "")
 
     input_data = f"""Sensing Data:
@@ -150,22 +150,22 @@ async def vee_information_guardian(state: VeeState) -> VeeState:
     # 4. Invoke the sub-graph asynchronously
     final_ir_state = await vee_ir_app.ainvoke(ir_input_state, {"recursion_limit": 10})
 
-    # 5. Store the final answer in the main graph's state
-    state["information_response"] = final_ir_state.get("final_answer")
+    # 5. Store the final answer chunks in the main graph's state
+    state["information_response"] = final_ir_state.get("answer_chunks")
 
     print("---VEE INFORMATION GUARDIAN FINISHED---")
     return state
 
 def assistant_drafter_node(state: dict) -> dict:
-    """Invokes the assistant drafter chain to generate a response from research."""
+    """Processes the response from the Information Guardian."""
     print("---RUNNING ASSISTANT DRAFTER---")
-    # The 'information_response' is now the raw text from the IR agent.
+    # The 'information_response' is now a list of answer chunks from the IR agent.
     information_response = state.get("information_response")
 
-    # If the Information Guardian provided a response, just pass it through.
-    if information_response:
-        print("---PASSING IR RESPONSE THROUGH DRAFTER---")
-        state["draft"] = information_response
+    # If the Information Guardian provided chunks, pass the list through.
+    if information_response and isinstance(information_response, list):
+        print("---PASSING IR CHUNKS THROUGH DRAFTER---")
+        state["draft"] = information_response  # Pass the list of chunks
         return state
 
     # Otherwise, run the standard drafting process (this part is now unused in the IR flow)
@@ -215,11 +215,17 @@ def buttons_node(state: dict) -> dict:
     return state
 
 def persist_assistant_node(state: dict) -> dict:
-    """Appends the final assistant message to the conversation history."""
-    # We persist the original markdown draft, not the HTML formatted one,
-    # to keep the history clean for the LLM.
+    """Appends the final assistant message(s) to the conversation history."""
     final_draft = state.get("draft", "")
     print(f"---PERSISTING ASSISTANT: Final draft: {final_draft}---")
-    if final_draft:
+
+    if isinstance(final_draft, list):
+        # If the draft is a list of chunks, append each as a separate message
+        for chunk in final_draft:
+            if chunk:
+                state["messages"].append(AIMessage(content=chunk))
+    elif isinstance(final_draft, str) and final_draft:
+        # Otherwise, append the single string draft
         state["messages"].append(AIMessage(content=final_draft))
+
     return state

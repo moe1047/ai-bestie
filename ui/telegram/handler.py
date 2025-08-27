@@ -31,6 +31,11 @@ class TelegramHandler:
         user_message = update.message.text
         chat_id = update.message.chat_id
 
+        if user_message == "/start":
+            welcome_message = "Hey! 👋 I'm Vee, your bestie. I'm here to support you emotionally and give you any information you want about anything in this world, all in the easiest way possible. 😊"
+            await self.telegram_client.send_message(chat_id, welcome_message)
+            return
+
         # Start typing indicator
         typing_task = asyncio.create_task(keep_typing(self.telegram_client, chat_id))
 
@@ -113,4 +118,8 @@ class TelegramHandler:
         final_draft = output_state.values.get("draft")
 
         if final_draft:
-            await self.telegram_client.send_message(chat_id, final_draft)
+            if isinstance(final_draft, list):
+                for chunk in final_draft:
+                    await self.telegram_client.send_message(chat_id, chunk)
+            elif isinstance(final_draft, str):
+                await self.telegram_client.send_message(chat_id, final_draft)

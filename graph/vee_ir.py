@@ -1,216 +1,242 @@
 """
-Vee-IR (Information Retriever) — LangGraph single-file implementation (no web)
+Vee-IR (Information Guardian) - Reworked Multi-Step Graph
 
-This file defines a simplified LangGraph agent with a single node for drafting
-answers based on provided context.
+This file implements a sophisticated, multi-step LangGraph agent for information
+retrieval. It breaks down the task into distinct stages: intent classification,
+answer generation, formatting, and chunking to provide conversational, accurate,
+and digestible responses.
 
 Key Components:
-- State: `VeeIRState` defines the data structure for the graph.
-- Nodes: `node_draft_answer` formats context and generates a response.
-- Graph: A simple workflow from START to the answer drafting node to END.
-
-Dependencies:
-  pip install langgraph langchain langchain-openai python-dotenv
-
-Environment:
-  Create a .env file with your OPENAI_API_KEY, or export it.
-
-Usage:
-  python vee-irl.py
+- State: `VeeIRState` defines the data structure for the new multi-step graph.
+- Prompts: A suite of prompts for each stage of the process.
+- Nodes: Functions for each step (`classify`, `generate`, `format`, `chunk`).
+- Graph: A sequential workflow connecting the nodes.
 """
 from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
-from typing import List, Literal, Optional, TypedDict
-
-from pydantic import BaseModel, Field
+from typing import List, Literal, TypedDict
 
 from dotenv import load_dotenv
 from langgraph.graph import END, START, StateGraph
+import re
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
 # ===============================
-# System Prompt (No Web)
+# Prompts
 # ===============================
-VEE_IR_PROMPT = """You are the **Information Guardian**, a specialized agent within Vee's Assistant Mode.
 
-Your inputs are always:
-- `conversation_history`: The last 5 turns of dialogue for context.
-- `user_question`: The user’s most recent message, which is your primary focus.
-- `user_intent`: The classified purpose of the user's question (e.g., Fact/Definition, How-to/Steps, Comparison, Plan/Strategy).
+INTENT_PROMPT = """Classify the user's query into one of the following five categories, using the conversation history for context. Simple queries like "why?" or "how?" or corrections like "i meant X" should be classified based on the preceding messages.
 
-🎯 **Your Goal:**
-Deliver maximum informational value in a mobile-chat setting.
-1.  **Direct Answer First:** Always lead with the conclusion.
-2.  **Be Scannable & Concise:** Target 80–120 words. Never exceed 150.
-3.  **Use Progressive Disclosure:** Never overload the user. Always provide a clear option for more depth.
-4.  **Stay Relevant:** Use `conversation_history` to maintain coherence.
-5.  **Be Intent-Driven:** Match your response format to the `user_intent`.
+- **Learn**: The user wants to understand a concept, topic, or get a definition.
+- **Solve**: The user has a specific problem and needs steps, a solution, or a plan.
+- **Create**: The user wants help generating content, ideas, or a creative piece.
+- **Update**: The user wants the latest information, news, or a summary of a situation.
+- **Reflect**: The user is sharing thoughts or feelings and is looking for perspective.
 
-🧠 **Your Tasks:**
-1.  **Analyze Inputs:** Use `conversation_history` for context, but focus on answering the `user_question`.
-2.  **Select Format:** Choose the correct delivery format below based on the `user_intent`.
-3.  **Structure Answer:**
-    - Start with a **TL;DR** (max 20 words) that directly answers the question.
-    - Format the main body according to the intent:
-        - **Fact/Definition:** TL;DR + 1–2 clarifying sentences.
-        - **How-to/Steps:** 3–5 numbered steps (max 15 words each).
-        - **Comparison:** 3–5 bullets comparing pros/cons, ending with a one-line recommendation.
-        - **Plan/Strategy:** 3 phases, each with a clear objective and key action.
-4.  **Optimize for Chat:** Keep every line short and easy to read on a mobile screen. If you have more than 5 points, group them into logical buckets.
-5.  **Engage for Depth:** Close with exactly one of the following hooks:
-    - "Want a few examples?"
-    - "Need a deeper dive on any of these points?"
-    - "Shall I make this into a checklist for you?"
+Return only the category name and nothing else.
 
-**Style:**
-- Be clear, confident, and actionable. Avoid verbose, academic language.
-- Respect the user's time and attention.
+<conversation_history>
+{history}
+</conversation_history>
 
----
-✅ **Output Template:**
-TL;DR: <Direct answer in ≤20 words.>
-
-<1. Formatted point/step based on intent.>
-<2. Formatted point/step based on intent.>
-<3. Formatted point/step based on intent.>
-
-<One of the engagement hooks.>
+User Query:
+{user_query}
 """
 
+GENERATION_PROMPT = """<role>
+You are the Information Guardian, a skilled human writer who naturally connects with readers through authentic, conversational content. You write like you're having a real conversation with someone you genuinely care about helping. Your goal is to provide a comprehensive and accurate answer to the user's question, which you will later format and simplify.
+</role>
 
+<writing_style>
+- Use a conversational tone with contractions (you're, don't, can't, we'll).
+- Vary sentence length dramatically. Short punchy ones, then longer, flowing sentences that give readers time to process.
+- Keep language simple, like you're explaining something to a friend over coffee.
+- Use relatable metaphors instead of jargon or AI buzzwords.
+</writing_style>
+
+<connection_principles>
+- Show you understand what the reader's going through—their frustrations, hopes, and real-world challenges.
+- Connect emotionally first, then provide value.
+- Write like you've actually lived through what you're discussing.
+</connection_principles>
+
+<task>
+Based on the user's question and their intent (`{user_intent}`), provide a helpful and empathetic answer. Use the conversation history for context. If the user is correcting you or changing the topic, acknowledge it naturally before answering (e.g., "Ah, got it. Let's talk about X instead.").
+
+**Hard Constraint:** Keep your answer under **150 words**. This is a strict limit.
+</task>
+
+<conversation_history>
+{history}
+</conversation_history>
+
+User Question: {user_query}
+"""
+
+FORMATTING_PROMPT = """You are a formatting expert. Your job is to take a raw, detailed answer and reformat it based on the user's original intent. The goal is to make the information clear, scannable, and easy to digest on a mobile screen.
+
+**User Intent:** {user_intent}
+**Raw Answer:**
+{raw_answer}
+
+**Formatting Rules:**
+- **Learn/Reflect**: Format as a short, easy-to-read paragraph or two. Use conversational language.
+- **Solve**: Format as a numbered list of actionable steps. Keep each step concise.
+- **Update**: Format with a clear headline, followed by the key facts in a bulleted list.
+- **Create**: Keep it free-flowing. Use paragraphs, and if it's a story or poem, preserve its structure.
+
+Return only the formatted text.
+"""
+
+ENGAGEMENT_HOOK_PROMPT = """You are a conversation designer. Your goal is to keep the user engaged by asking a thoughtful, open-ended question after providing an answer.
+
+Based on the user's intent and the answer provided, create a short, natural-sounding question to encourage them to continue the conversation.
+
+**User Intent:** {user_intent}
+**Answer Provided:**
+{raw_answer}
+
+**Rules:**
+- Keep it under 15 words.
+- Make it open-ended (avoid yes/no questions).
+- It should feel like a natural continuation of the topic.
+
+Examples:
+- (Intent: Learn) "What part of that feels the most surprising to you?"
+- (Intent: Solve) "How does that plan feel for a first step?"
+- (Intent: Reflect) "Does that resonate with how you've been feeling?"
+
+Return only the question.
+"""
 # ===============================
 # State Definition
 # ===============================
-class Citation(TypedDict, total=False):
-    """Represents a piece of context with a human-visible handle."""
-
-    kind: Literal["pin", "file", "memory"]  # type/category
-    label: str  # e.g., "Q3 Plan", "pricing_test_v2.xlsx", "Hiring prefs"
-    section: Optional[str]  # e.g., "§Objectives", "p.3", "Tab: WTP"
-    text: str  # the excerpt text to use as evidence
-    date: Optional[str]  # ISO date string if relevant for recency
-
-
-class FinalAnswer(BaseModel):
-    """A structured representation of the final answer."""
-
-    answer: str = Field(description="The final, concise answer to the user's query.")
-    evidence: List[str] = Field(
-        description="A list of citations supporting the answer.", default_factory=list
-    )
-    assumptions_caveats: Optional[str] = Field(
-        None, description="Any assumptions made or caveats to mention."
-    )
-    confidence: Literal["High", "Medium", "Low"] = Field(
-        description="The confidence level in the answer."
-    )
-    next_steps: Optional[List[str]] = Field(
-        None, description="Suggested next steps for the user."
-    )
-
-
 class VeeIRState(TypedDict, total=False):
     """Defines the state for the information retrieval graph."""
-
+    # Inputs
     user_query: str
-    user_intent: str  # The user's classified intent
-    pins: List[Citation]
-    files: List[Citation]
-    memories: List[Citation]
-    conversation_history: List[SystemMessage | HumanMessage]  # For context
-    final_answer: str
-    structured_answer: dict  # To store the full structured output
+    conversation_history: List[SystemMessage | HumanMessage]
 
+    # Intermediate state
+    user_intent: Literal["Learn", "Solve", "Create", "Update", "Reflect"]
+    raw_answer: str
+    formatted_answer: str
 
-# ===============================
-# Utilities
-# ===============================
-def _trim(text: str, max_chars: int) -> str:
-    """Trims text to a maximum number of characters, adding an ellipsis if needed."""
-    if len(text) <= max_chars:
-        return text
-    return text[: max_chars - 3] + "..."
-
-
-def render_context_block(
-    pins: Optional[List[Citation]],
-    files: Optional[List[Citation]],
-    memories: Optional[List[Citation]],
-    max_total_chars: int = 6000,
-) -> str:
-    """Renders a human-citable context block with labels for the LLM.
-
-    The block is intentionally simple plaintext to ensure portability across providers.
-    """
-    pins = pins or []
-    files = files or []
-    memories = memories or []
-
-    def fmt(c: Citation, prefix: str) -> str:
-        sec = f", {c['section']}" if c.get("section") else ""
-        dt = f" ({c['date']})" if c.get("date") else ""
-        header = f"[{prefix}: {c['label']}{sec}]{dt}"
-        return f"{header}\n{c['text'].strip()}\n"
-
-    parts: List[str] = []
-    if pins:
-        parts.append("# Pins\n" + "\n".join(fmt(c, "Pin") for c in pins))
-    if files:
-        parts.append("# Files\n" + "\n".join(fmt(c, "File") for c in files))
-    if memories:
-        parts.append("# Memories\n" + "\n".join(fmt(c, "Memory") for c in memories))
-
-    block = "\n\n".join(parts).strip()
-    return _trim(block, max_total_chars)
+    # Final output
+    answer_chunks: List[str]
 
 
 # ===============================
 # LLM Client
 # ===============================
 def make_llm(model: str = "gpt-4o", temperature: float = 0.2) -> ChatOpenAI:
-    """Factory for the chat model. Adjust model name and other settings as needed."""
+    """Factory for the chat model."""
     return ChatOpenAI(model=model, temperature=temperature)
 
 
 # ===============================
 # Graph Nodes
 # ===============================
-def node_draft_answer(state: VeeIRState) -> VeeIRState:
-    """Formats context and drafts a structured answer in a single step."""
-    context_block = render_context_block(
-        state.get("pins"), state.get("files"), state.get("memories")
+def node_classify_intent(state: VeeIRState) -> VeeIRState:
+    """Classifies the user's query into one of five core motivations."""
+    llm = make_llm(temperature=0.0)
+    # Use the last 5 messages for context
+    history_str = "\n".join([f"{msg.type}: {msg.content}" for msg in state.get("conversation_history", [])[-5:]])
+    prompt = INTENT_PROMPT.format(
+        history=history_str or "No history.",
+        user_query=state["user_query"]
     )
+    response = llm.invoke([HumanMessage(content=prompt)])
+    state["user_intent"] = response.content.strip()
+    return state
 
-    llm = make_llm()
-    history = state.get("conversation_history", [])
-
-    # The new prompt is self-contained. The HumanMessage just needs to provide the raw data.
-    human_message_content = (
-        f"**User Question:**\n{state['user_query']}\n\n"
-        f"**User Intent:**\n{state.get('user_intent', 'Fact/Definition')}\n\n"
-        f"**Available Context:**\n{context_block if context_block else 'No additional context provided.'}"
+def node_generate_answer(state: VeeIRState) -> VeeIRState:
+    """Generates a raw, detailed answer based on the user's query and intent."""
+    llm = make_llm(temperature=0.4)
+    history_str = "\n".join([f"{msg.type}: {msg.content}" for msg in state.get("conversation_history", [])])
+    prompt = GENERATION_PROMPT.format(
+        user_intent=state["user_intent"],
+        history=history_str or "No history.",
+        user_query=state["user_query"],
     )
+    response = llm.invoke([HumanMessage(content=prompt)])
+    state["raw_answer"] = response.content
+    return state
 
-    messages = [
-        SystemMessage(content=VEE_IR_PROMPT),
-        *history,
-        HumanMessage(content=human_message_content),
-    ]
+def node_format_answer(state: VeeIRState) -> VeeIRState:
+    """Formats the raw answer according to the classified intent."""
+    llm = make_llm(temperature=0.0)
+    prompt = FORMATTING_PROMPT.format(
+        user_intent=state["user_intent"],
+        raw_answer=state["raw_answer"],
+    )
+    response = llm.invoke([HumanMessage(content=prompt)])
+    state["formatted_answer"] = response.content
+    return state
 
-    # Get the text response from the LLM
-    response = llm.invoke(messages)
-    final_answer = response.content
+def node_generate_hook(state: VeeIRState) -> VeeIRState:
+    """Generates a conversational hook and appends it to the last answer chunk."""
+    if not state.get("answer_chunks"):
+        return state
 
-    # Store the final answer. Structured answer is no longer used with this prompt.
-    state["final_answer"] = final_answer
-    state["structured_answer"] = {}
+    llm = make_llm(temperature=0.5)
+    prompt = ENGAGEMENT_HOOK_PROMPT.format(
+        user_intent=state["user_intent"],
+        raw_answer=state["raw_answer"],
+    )
+    hook = llm.invoke([HumanMessage(content=prompt)]).content.strip()
+
+    if hook:
+        last_chunk_index = len(state["answer_chunks"]) - 1
+        # Append with two newlines for spacing
+        state["answer_chunks"][last_chunk_index] += f"\n\n{hook}"
+        # Also update the final_answer if it's the only chunk
+        if last_chunk_index == 0:
+            state["final_answer"] = state["answer_chunks"][0]
+
+    return state
+
+def node_chunk_answer(state: VeeIRState) -> VeeIRState:
+    """Chunks the formatted answer into parts if it exceeds the word limit."""
+    text = state["formatted_answer"]
+    chunks = []
+    if len(text.split()) <= 150:
+        # If the text is short, format and add it as a single chunk
+        formatted_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+        chunks.append(formatted_text)
+    else:
+        # If the text is long, chunk it line-by-line to preserve list formatting
+        lines = text.split('\n')
+        current_chunk_lines = []
+        current_word_count = 0
+        for line in lines:
+            line_word_count = len(line.split())
+            if current_word_count + line_word_count > 120 and current_chunk_lines:
+                # Finalize the current chunk
+                chunk_text = '\n'.join(current_chunk_lines)
+                formatted_chunk = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', chunk_text)
+                chunks.append(formatted_chunk)
+                # Start a new chunk
+                current_chunk_lines = [line]
+                current_word_count = line_word_count
+            else:
+                current_chunk_lines.append(line)
+                current_word_count += line_word_count
+        # Add the last remaining chunk
+        if current_chunk_lines:
+            chunk_text = '\n'.join(current_chunk_lines)
+            formatted_chunk = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', chunk_text)
+            chunks.append(formatted_chunk)
+
+    state["answer_chunks"] = chunks
+    # For compatibility with the main graph, we'll also populate final_answer with the first chunk.
+    state["final_answer"] = chunks[0] if chunks else ""
     return state
 
 
@@ -218,11 +244,21 @@ def node_draft_answer(state: VeeIRState) -> VeeIRState:
 # Graph Assembly
 # ===============================
 def build_graph() -> StateGraph:
-    """Builds the LangGraph state machine."""
+    """Builds the new multi-step LangGraph state machine."""
     graph = StateGraph(VeeIRState)
-    graph.add_node("draft_answer_node", node_draft_answer)
-    graph.add_edge(START, "draft_answer_node")
-    graph.add_edge("draft_answer_node", END)
+    graph.add_node("classify_intent", node_classify_intent)
+    graph.add_node("generate_answer", node_generate_answer)
+    graph.add_node("format_answer", node_format_answer)
+    graph.add_node("chunk_answer", node_chunk_answer)
+    graph.add_node("generate_hook", node_generate_hook)
+
+    graph.add_edge(START, "classify_intent")
+    graph.add_edge("classify_intent", "generate_answer")
+    graph.add_edge("generate_answer", "format_answer")
+    graph.add_edge("format_answer", "chunk_answer")
+    graph.add_edge("chunk_answer", "generate_hook")
+    graph.add_edge("generate_hook", END)
+
     return graph
 
 
@@ -230,27 +266,21 @@ def build_graph() -> StateGraph:
 # Example Runner
 # ===============================
 if __name__ == "__main__":
-    # Compile the graph into a runnable application
     app = build_graph().compile()
 
-    # Define an example state to run the graph with
-    example_state: VeeIRState = {
-        "user_query": "Explain what is AI. explain in detail please ?",
-        "user_intent": "Fact/Definition",
-        "pins": [],
-        "files": [],
-        "memories": [],
-        "conversation_history": [
-            HumanMessage(content="Hi Vee, can you help me with something?"),
-            SystemMessage(content="Of course! I'm here to help. What's on your mind?"),
-        ],
+    example_state = {
+        "user_query": "I'm trying to learn how to bake sourdough bread, but I'm feeling really overwhelmed by all the steps. Can you explain the basic process in a simple way?",
+        "conversation_history": [],
     }
 
-    # Invoke the graph with the example state
-    output: VeeIRState = app.invoke(example_state)
+    output = app.invoke(example_state)
 
-    # Print the final answer
-    print("==== FINAL ANSWER ====")
-    print(output.get("final_answer", "<no answer>"))
-    print("\n==== STRUCTURED ANSWER (JSON) ====")
-    print(json.dumps(output.get("structured_answer", {}), indent=2))
+    print("==== FINAL CHUNKS ====")
+    for i, chunk in enumerate(output.get("answer_chunks", [])):
+        print(f"--- Chunk {i+1} ---")
+        print(chunk)
+    
+    print("\n==== FINAL STATE ====")
+    # Clean up state for printing
+    if 'conversation_history' in output: del output['conversation_history']
+    print(json.dumps(output, indent=2))
