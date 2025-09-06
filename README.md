@@ -12,9 +12,9 @@ Vee is more than just a chatbot; it's a versatile companion designed to handle a
     - **Bestie Mode**: Offers empathetic, supportive, and non-judgmental conversation when you need a friend.
     - **Assistant Mode**: Provides clear, factual, and well-researched answers to your questions.
 
-- **Advanced Information Retrieval**:
-    - When in Assistant mode, Vee uses a sophisticated, multi-agent system (`Info-Seeker`) to research complex topics.
-    - It can break down your query, perform targeted web searches, synthesize information, and provide a structured, easy-to-understand answer.
+- **Structured & Readable Answers**:
+    - When in Assistant mode, Vee uses a sophisticated, multi-step graph (`Vee Information Guardian`) to research topics.
+    - It delivers well-structured answers with clear headers, emojis, and proper formatting, making them easy to read on Telegram.
 
 - **Context-Aware Conversation**:
     - Vee remembers the last few turns of your conversation, ensuring its responses are relevant and follow the flow of dialogue.
@@ -33,21 +33,21 @@ Vee's intelligence is orchestrated by a modular LangGraph workflow that ensures 
 ```
 [User Input] -> Ingest -> Safety Check -> Perception (Sense Emotion)
               |
-              +--> Mode Decider --+--> [Bestie Mode] -> Planner (Vee's Heart & Mind) -> Bestie Drafter (Vee's Voice) -> Review -> [Output]
-              |                   |
-              |                   +--> [Assistant Mode] -> Planner (Assistant Logic) -> Expertise Router --+--> Omni-Responder -> Assistant Drafter -> Review -> [Output]
-              |                                                                                        |
-              |                                                                                        +--> Info-Seeker (Multi-Agent) -> Assistant Drafter -> Review -> [Output]
-              |
-              +--------------------------------------------------------------------------------------------> [Final Output]
+              +--> Mode Decider --+--> [Bestie Mode] -> Bestie Drafter -> [Output]
+                                  |
+                                  +--> [Assistant Mode] -> Vee Information Guardian -> [Output]
 ```
 
 ### Key Components
 
-- **Mode-Aware Planner**: A single, unified planner node (`plan_next_move`) that dynamically selects the correct LLM prompt and logic based on the active mode (`bestie` or `assistant`).
-- **Stateful Routing**: The graph uses conditional edges (`mode_decider`, `post_planning_router`) that read the `mode` from the `VeeState` to direct the workflow, eliminating redundant nodes and creating a clean, explicit data flow.
-- **Info-Seeker Subgraph**: A self-contained multi-agent system for advanced research, demonstrating a powerful graph-within-a-graph architecture.
-- **Persona Drafters**: Separate `bestie_drafter` and `assistant_drafter` nodes ensure that the final response has the perfect tone and personality for the chosen mode.
+- **Vee Information Guardian Subgraph**: A self-contained, multi-step graph for advanced information retrieval. It follows a clear process:
+    1.  **Classify Intent**: Understands the user's goal (e.g., Learn, Solve).
+    2.  **Extract Goal**: Breaks down the query into actionable sub-tasks.
+    3.  **Plan Response**: Creates a structured plan for the generator.
+    4.  **Generate Knowledge**: Synthesizes the information into a clear, formatted answer.
+- **Modular Prompt System**: All prompts for the Information Guardian are externalized into markdown files, making them easy to update and manage without changing the application code.
+- **Stateful Routing**: The graph uses a conditional edge (`mode_decider_edge`) that reads the `mode` from the `VeeState` to direct the workflow to the appropriate subgraph or node.
+- **Persona Drafters**: A dedicated `bestie_drafter` node ensures that the final response has the perfect tone and personality when Vee is in "Bestie Mode".
 
 ## Getting Started with Docker
 
