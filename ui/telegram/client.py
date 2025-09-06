@@ -1,5 +1,6 @@
 """Telegram API client for Vee AI companion."""
 import aiohttp
+import re
 from typing import Optional, AsyncContextManager
 from contextlib import asynccontextmanager
 
@@ -12,6 +13,15 @@ class TelegramClient:
     def _get_api_url(self, method: str) -> str:
         """Get full API URL for a given method."""
         return f"{self.base_url}/bot{self.token}/{method}"
+
+    def _escape_markdown(self, text: str) -> str:
+        """Escapes characters for Telegram's MarkdownV2 parser."""
+        # Characters that have special meaning in MarkdownV2 and need to be escaped.
+        escape_chars = r'[_*[]()~`>#+-=|{}.!]'
+        # Use re.sub to find and escape these characters.
+        # The pattern looks for any character in the escape_chars string.
+        # The replacement adds a backslash before the matched character.
+        return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
     
     @asynccontextmanager
     async def get_session(self) -> AsyncContextManager[aiohttp.ClientSession]:
@@ -34,13 +44,18 @@ class TelegramClient:
                     raise Exception(f"Failed to get bot info: {result}")
                 return result.get("result", {})
     
-    async def send_message(self, chat_id: int, text: str, request_contact: bool = False) -> dict:
+    async def send_message(self, chat_id: int, text: str, parse_mode: Optional[str] = "MarkdownV2", request_contact: bool = False) -> dict:
         """Send a message to a chat with optional contact request button."""
         url = self._get_api_url("sendMessage")
+
+        message_text = text
+        if parse_mode == "MarkdownV2":
+            message_text = self._escape_markdown(text)
+
         data = {
             "chat_id": chat_id,
-            "text": text,
-            "parse_mode": "HTML"  # Support HTML formatting in messages
+            "text": message_text,
+            "parse_mode": parse_mode
         }
         
         if request_contact:

@@ -48,12 +48,12 @@ Follow this structure for every message to create a natural, supportive flow.
 Your only job is to follow this structure to make the user feel heard, validated, and supported.
 """
 
-def draft(text:str, sensing:Dict[str,Any], plan:Dict[str,Any], recent:List[Dict[str,str]])->str:
+def draft(text:str, sensing:Dict[str,Any], content_seed:str, recent:List[Dict[str,str]])->str:
     emo = ", ".join(f"{e['label']}({e['score']:.2f})" for e in sensing.get("emotions",[]))
     ctx = "\n".join(f"{m['role']}: {m['content']}" for m in recent[-2:])
     prompt = f"""User: {text}
     Emotions: {emo or "unknown"}
-    Plan: {plan}
+    Topic: {content_seed}
     Last turns:\n{ctx}
     Write the reply."""
     high_emotion = (sensing.get("uncertainty", 0) > 0.45) or \

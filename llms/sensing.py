@@ -15,7 +15,7 @@ SENSING_SCHEMA = {
   "required":["emotions","intent","uncertainty"]
 }
 
-groq_fast = ChatGroq(model="llama3-8b-8192", temperature=0)
+groq_fast = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
 
 def sense(text:str, summary:str, recent:List[Dict[str,str]])->Dict[str,Any]:
     ctx = "\n".join(f"{m['role']}: {m['content']}" for m in recent[-3:])

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import json
 from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -49,54 +50,36 @@ class TelegramHandler:
             else:
                 logger.info(f"[State Debug] No existing state found, initializing new state")
             
-            # Pass user's message directly to the graph as input
-            input_data = {
-                "messages": [],
-                "sensing": {
-                    "current": {
-                        "emotion": None,
-                        "tone": None,
-                        "notes": None,
-                        "timestamp": None
+            # Get the current state's values, or an empty dict if no state exists
+            input_data = current_state.values if current_state and hasattr(current_state, 'values') else {}
+
+            # If it's a new conversation, initialize the required structure
+            if not input_data:
+                logger.info(f"[State Debug] Initializing new state for chat {chat_id}")
+                input_data = {
+                    "messages": [],
+                    "sensing": {"current": {}, "history": []},
+                    "planning": {"current": {}, "history": []},
+                    "acting": {},
+                    "session": {
+                        "start_time": datetime.now().isoformat(),
+                        "last_update": datetime.now().isoformat(),
+                        "context": {}
                     },
-                    "history": []
-                },
-                "planning": {
-                    "current": {
-                        "strategy": None,
-                        "rationale": None,
-                        "content_seed": None,
-                        "tag": None,
-                        "timestamp": None
-                    },
-                    "history": []
-                },
-                "acting": {},
-                "session": {
-                    "start_time": datetime.now().isoformat(),
-                    "last_update": datetime.now().isoformat(),
-                    "context": {}
-                },
-                "user": {
-                    "name": None,
-                    "phone_number": None,
-                    "chat_id": str(chat_id)
+                    "user": {
+                        "name": None,
+                        "phone_number": None,
+                        "chat_id": str(chat_id)
+                    }
                 }
-            }
-            
-            # Add new message to existing messages
-            # Update with existing state if available
-            if current_state and hasattr(current_state, 'values'):
-                logger.info(f"[State Debug] Merging with existing state values")
-                try:
-                    input_data.update(current_state.values)
-                    logger.info(f"[State Debug] State merge successful")
-                except Exception as e:
-                    logger.error(f"[State Debug] Error merging state: {e}")
-            
-            # Append new message
-            input_data["messages"].append(HumanMessage(content=user_message))
-            print("input_data ========>",input_data)
+            else:
+                logger.info(f"[State Debug] Loaded existing state for chat {chat_id}: {input_data}")
+
+            # Append the new user message to the history
+            messages = input_data.get("messages", [])
+            messages.append(HumanMessage(content=user_message))
+            input_data["messages"] = messages
+            logger.info(f"[State Debug] Final input state before streaming for chat {chat_id}: {json.dumps(input_data, indent=2, default=str)}")
 
             # Stream through LangGraph
             async for chunk in self.graph.astream(
@@ -120,6 +103,6 @@ class TelegramHandler:
         if final_draft:
             if isinstance(final_draft, list):
                 for chunk in final_draft:
-                    await self.telegram_client.send_message(chat_id, chunk)
+                    await self.telegram_client.send_message(chat_id, chunk, parse_mode="HTML")
             elif isinstance(final_draft, str):
-                await self.telegram_client.send_message(chat_id, final_draft)
+                await self.telegram_client.send_message(chat_id, final_draft, parse_mode="HTML")

@@ -7,8 +7,6 @@ from llms.safety import safety_triage
 from llms.sensing import sense
 from llms.planner import plan_next_move
 from llms.drafter import draft
-from llms.reviewer import review_bestie_draft, review_assistant_draft
-from llms.assistant_drafter import get_assistant_drafter_chain
 from llms.mode_decider import get_mode_decider_chain
 import json
 import re
@@ -35,33 +33,39 @@ def _get_formatted_messages(messages: List[HumanMessage | AIMessage]) -> List[Di
 # -------------------------------------------------------------------------
 def ingest_node(state: dict) -> dict:
     """Extracts the latest user message and saves it to the state."""
+    print("\n--- 1. INGEST NODE ---")
     messages = state["messages"]
     for m in reversed(messages):
         if isinstance(m, HumanMessage):
             state["last_user_text"] = m.content
             break
+    print(f"Ingest complete. Last user text: '{state.get('last_user_text', '')[:50]}...'\n")
     return state
 
 def safety_triage_node(state: dict) -> dict:
     """Runs safety triage on the latest user text and records the risk level."""
+    print("\n--- 2. SAFETY TRIAGE NODE ---")
     text = state.get("last_user_text", "")
     tri = safety_triage(text)
     state["risk_level"] = tri.get("risk_level") if isinstance(tri, dict) else None
+    print(f"Safety triage complete. Risk level: {state.get('risk_level')}\n")
     return state
 
 def sense_text_node(state: dict) -> dict:
     """Analyzes the user's text for emotional and conversational cues."""
+    print("\n--- 3. SENSE TEXT NODE ---")
     text = state.get("last_user_text", "")
     recent_msgs = state["messages"][-5:]
     conversation_history = get_buffer_string(recent_msgs)
     formatted_messages = _get_formatted_messages(recent_msgs)
     
     state["sensing"] = sense(text, conversation_history, formatted_messages)
+    print(f"Sensing complete. Sensing data present: {'sensing' in state}\n")
     return state
 
 def mode_decider_node(state: VeeState) -> VeeState:
     """Determines the mode ('bestie' or 'assistant') and saves it to the state."""
-    print("---DECIDING MODE---")
+    print("\n--- 4. MODE DECIDER NODE ---")
     mode_decider_chain = get_mode_decider_chain()
 
     # Prepare the input for the chain
@@ -91,7 +95,7 @@ def mode_decider_node(state: VeeState) -> VeeState:
         mode = "bestie"
         print(f"Warning: Could not determine mode from output. Defaulting to '{mode}'.")
 
-    print(f"Mode decided: {mode}")
+    print(f"Mode decided: {mode}\n")
 
     # Save the mode to the state for later routing
     state["mode"] = mode
@@ -99,6 +103,7 @@ def mode_decider_node(state: VeeState) -> VeeState:
 
 def plan_next_move_node(state: VeeState) -> VeeState:
     """Runs the appropriate planner based on the mode stored in the state."""
+    print("\n--- 5. PLAN NEXT MOVE NODE ---")
     recent_msgs = state["messages"][-5:]
     conversation_history = get_buffer_string(recent_msgs)
     mode = state.get("mode", "bestie")
@@ -110,6 +115,7 @@ def plan_next_move_node(state: VeeState) -> VeeState:
         conversation_history=conversation_history,
         latest_user_message=latest_user_message
     )
+    print(f"Planning complete. Plan created for mode: {state.get('mode')}. Plan content: {str(state.get('plan', {}))[:100]}...\n")
     return state
 
 # 2. Expertise & Persona Nodes (Branched)
@@ -118,114 +124,77 @@ def plan_next_move_node(state: VeeState) -> VeeState:
 # Assistant Mode Nodes
 async def vee_information_guardian(state: VeeState) -> VeeState:
     """Invokes the Vee IR sub-graph to perform focused information retrieval."""
-    print("---INVOKING VEE INFORMATION GUARDIAN SUBGRAPH---")
+    print("\n--- 6a. VEE INFORMATION GUARDIAN NODE ---")
 
     # 1. Compile the Vee IR graph
+    # Note: Compiling the graph on every invocation might be inefficient.
+    # Consider moving this to a higher level if performance becomes an issue.
     vee_ir_app = build_vee_ir_graph().compile()
 
-    # 2. Extract the user query from the planner's state or fallback
-    raw_query_data = state.get("plan", {}).get("question")
-    if isinstance(raw_query_data, str):
-        query = raw_query_data
-    elif isinstance(raw_query_data, list) and raw_query_data and isinstance(raw_query_data[0], dict):
-        query = raw_query_data[0].get("text", "")
-    else:
-        query = state.get("last_user_text", "")
-
+    # 2. Extract the latest user query from the state
+    query = state.get("last_user_text")
     if not query:
-        state["information_response"] = {"error": "Could not determine the research query."}
+        print("Error: 'last_user_text' not found in state.")
+        state["draft"] = "I'm sorry, I had trouble understanding your request. Could you please rephrase?"
         return state
 
     # 3. Prepare the input for the Vee IR graph
-    # 3. Prepare the input for the Vee IR graph, including conversation history
     ir_input_state: VeeIRGraphState = {
         "user_query": query,
-        "pins": [],  # Future: Populate from main state
-        "files": [], # Future: Populate from main state
-        "memories": [], # Future: Populate from main state
-        "conversation_history": state.get("messages", [])[-5:], # Pass last 5 messages
-        "user_intent": state.get("user_intent", "Fact/Definition"), # Pass classified intent
+        "conversation_history": state.get("messages", [])[-5:],
     }
+    print(f"Invoking IR graph with state: user_query='{ir_input_state['user_query']}'")
 
     # 4. Invoke the sub-graph asynchronously
-    final_ir_state = await vee_ir_app.ainvoke(ir_input_state, {"recursion_limit": 10})
+    try:
+        final_ir_state = await vee_ir_app.ainvoke(ir_input_state, {"recursion_limit": 15})
+        # 5. Store the final answer in the main graph's 'draft' state
+        state["draft"] = final_ir_state.get("final_answer")
+        print(f"Vee IR subgraph finished. Final answer: '{state.get('draft', '')[:50]}...'\n")
+    except Exception as e:
+        print(f"Error invoking Vee IR subgraph: {e}")
+        state["draft"] = "I encountered an issue while trying to find that information. Could you try asking in a different way?"
 
-    # 5. Store the final answer chunks in the main graph's state
-    state["information_response"] = final_ir_state.get("answer_chunks")
-
-    print("---VEE INFORMATION GUARDIAN FINISHED---")
-    return state
-
-def assistant_drafter_node(state: dict) -> dict:
-    """Processes the response from the Information Guardian."""
-    print("---RUNNING ASSISTANT DRAFTER---")
-    # The 'information_response' is now a list of answer chunks from the IR agent.
-    information_response = state.get("information_response")
-
-    # If the Information Guardian provided chunks, pass the list through.
-    if information_response and isinstance(information_response, list):
-        print("---PASSING IR CHUNKS THROUGH DRAFTER---")
-        state["draft"] = information_response  # Pass the list of chunks
-        return state
-
-    # Otherwise, run the standard drafting process (this part is now unused in the IR flow)
-    drafter_chain = get_assistant_drafter_chain()
-    history = state.get("messages", [])[-5:]
-    expert_draft = ""
-
-    state["draft"] = drafter_chain.invoke(
-        {"expert_draft": expert_draft, "conversation_history": history}
-    )
-    print("---ASSISTANT DRAFTER FINISHED---")
     return state
 
 # Bestie Mode Node
 def bestie_drafter_node(state: dict) -> dict:
     """Generates a response using the bestie persona ('Vee's Voice')."""
+    print("\n--- 6b. BESTIE DRAFTER NODE ---")
     recent_msgs = state["messages"][-5:]
     formatted_messages = _get_formatted_messages(recent_msgs)
     
+    # Extract the core content seed from the plan to provide cleaner context
+    plan_object = state.get("plan", {})
+    content_seed = plan_object.get("content_seed", "")
+
     state["draft"] = draft(
         state["last_user_text"],
         state["sensing"],
-        state["plan"],
+        content_seed,  # Pass the clean content seed instead of the raw plan
         formatted_messages
     )
+    print(f"Bestie drafting complete. Draft: '{state.get('draft', '')[:50]}...'\n")
     return state
 # 3. Finalization Nodes (Converged)
 # -------------------------------------------------------------------------
-def review_draft_node(state: dict) -> dict:
-    """Reviews the draft for quality based on the conversation mode."""
-    mode = state.get("mode", "bestie")
-    draft = state.get("draft", "")
-
-    print("---RUNNING REVIEWER---")
-    print(draft)
-
-    return state
 
 
 def buttons_node(state: dict) -> dict:
     """Loads a default set of UI buttons into the state."""
+    print("\n--- 7. BUTTONS NODE ---")
     state["buttons"] = [
         [{"text": "Yes, that’s right", "data": "fit_yes"}, {"text": "Not quite", "data": "fit_no"}],
         [{"text": "Advice", "data": "mode_advice"}, {"text": "Just listening", "data": "mode_listen"}],
         [{"text": "Save", "data": "mem_save"}, {"text": "Don’t remember", "data": "mem_skip"}]
     ]
+    print("Button loading complete.\n")
     return state
 
 def persist_assistant_node(state: dict) -> dict:
     """Appends the final assistant message(s) to the conversation history."""
+    print("\n--- 8. PERSIST ASSISTANT NODE ---")
     final_draft = state.get("draft", "")
-    print(f"---PERSISTING ASSISTANT: Final draft: {final_draft}---")
-
-    if isinstance(final_draft, list):
-        # If the draft is a list of chunks, append each as a separate message
-        for chunk in final_draft:
-            if chunk:
-                state["messages"].append(AIMessage(content=chunk))
-    elif isinstance(final_draft, str) and final_draft:
-        # Otherwise, append the single string draft
-        state["messages"].append(AIMessage(content=final_draft))
-
+    print(f"Persisting draft: '{final_draft[:50]}...'\n")
+    state["messages"].append(AIMessage(content=final_draft))
     return state
