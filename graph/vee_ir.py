@@ -111,19 +111,21 @@ def node_unified_goal_extractor(state: VeeIRState) -> VeeIRState:
 
     llm = make_llm()
 
+    # Get conversation history
+    recent_messages = state.get("conversation_history", [])[-5:]
+    conversation_history_str = get_buffer_string(recent_messages)
+
+    prompt = UNIFIED_GOAL_EXTRACTOR_PROMPT.format(
+        conversation_history=conversation_history_str,
+        user_query=state['user_query'],
+        user_intent=state['information_intent']['intent']
+    )
+
     parser = PydanticOutputParser(pydantic_object=UnifiedGoal)
-    prompt_template = ChatPromptTemplate.from_messages([
-        ("system", UNIFIED_GOAL_EXTRACTOR_PROMPT),
-        ("human", "* Latest user message: {user_query}\n* Classified intent: {user_intent}")
-    ])
-    
-    chain = prompt_template | llm | parser
+    chain = llm | parser
 
     try:
-        goal_data = chain.invoke({
-            "user_query": state['user_query'],
-            "user_intent": state['information_intent']['intent']
-        })
+        goal_data = chain.invoke(prompt)
         state["unified_goal"] = goal_data.model_dump()
 
     except Exception as e:
@@ -145,6 +147,9 @@ def node_plan_response(state: VeeIRState) -> VeeIRState:
 
     llm = make_llm()
     
+    recent_messages = state.get("conversation_history", [])[-5:]
+    conversation_history_str = get_buffer_string(recent_messages)
+
     sub_task_list = [f"- {task['text']}" for task in state["unified_goal"].get("sub_tasks", [])]
     sub_tasks_str = "\n".join(sub_task_list)
 
@@ -152,23 +157,19 @@ def node_plan_response(state: VeeIRState) -> VeeIRState:
     user_intent = state["information_intent"]["intent"]
     goal = state["unified_goal"].get("goal", "")
 
-    prompt_template = ChatPromptTemplate.from_messages([
-        ("system", PLANNER_PROMPT),
-        ("human", "Here is the context for the plan:\n\n* Latest user message: {user_query}\n* Classified intent: {user_intent}\n* Extracted goal: {goal}\n* Extracted sub-tasks:\n{sub_tasks}")
-    ])
-    
-    chain = prompt_template | llm
-    
+    prompt = PLANNER_PROMPT.format(
+        conversation_history=conversation_history_str,
+        user_query=user_query,
+        user_intent=user_intent,
+        goal=goal,
+        sub_tasks=sub_tasks_str
+    )
+
     parser = PydanticOutputParser(pydantic_object=Plan)
-    chain = prompt_template | llm | parser
+    chain = llm | parser
 
     try:
-        plan_data = chain.invoke({
-            "user_query": user_query,
-            "user_intent": user_intent,
-            "goal": goal,
-            "sub_tasks": sub_tasks_str
-        })
+        plan_data = chain.invoke(prompt)
         state["plan"] = plan_data.model_dump()
 
     except Exception as e:
@@ -192,9 +193,17 @@ def node_knowledge_generator(state: VeeIRState) -> VeeIRState:
 
     plan_str = json.dumps(state["plan"], indent=2)
 
-    prompt = KNOWLEDGE_GENERATOR_PROMPT.replace("{plan}", plan_str)
+    # Get conversation history
+    recent_messages = state.get("conversation_history", [])[-5:]
+    conversation_history_str = get_buffer_string(recent_messages)
 
-    response = llm.invoke([HumanMessage(content=prompt)])
+    prompt = KNOWLEDGE_GENERATOR_PROMPT.format(
+        conversation_history=conversation_history_str,
+        plan=plan_str
+    )
+
+    response = llm.invoke(prompt)
+
     formatted_answer = format_for_telegram(response.content.strip())
     state["final_answer"] = formatted_answer
     

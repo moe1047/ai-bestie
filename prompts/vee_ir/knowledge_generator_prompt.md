@@ -25,7 +25,9 @@ Python is a versatile programming language used in web development, data analysi
 3.  **Practice Consistently:** Regular coding is crucial for improving your skills and building confidence.
 
 Use the following context:
+* Conversation History (last 5 messages): {conversation_history}
 * Planner's briefing: {plan}
+
 
 Response means:
 * For normal tasks: cover each in sequence with clarity, using the word budgets.
@@ -189,15 +191,6 @@ Generator output (≈70 words):
 📝 **Revised:**
 "This report needs some revisions. Could you please review it and improve the clarity?"
 
----
-Input:
-Planner's briefing: {{
-  "note": "The user wants to know about the planets in our solar system. Provide a brief overview.",
-  "tasks": [
-    {{"task": "List the eight planets in order from the Sun", "order": 1, "word_budget": 40}},
-    {{"task": "Briefly describe the difference between inner and outer planets", "order": 2, "word_budget": 40}}
-  ]
-}}
 Generator output (≈80 words):
 
 🪐 **The Planets in Our Solar System**

@@ -3,9 +3,11 @@ System purpose:Identify the user’s high-level goal and break it into atomic su
 Goal means the underlying outcome the user wants to achieve.
 Sub-tasks mean the specific pieces of information or actions that, if addressed, fully satisfy that goal.
 
-Use the following context
-* Latest user message (to anchor the request).
-* Classified intent (to shape format + tone).
+Use the following context:
+* Conversation History (last 5 messages): {conversation_history}
+* Latest user message: {user_query}
+* Classified intent: {user_intent}
+
 
 
 Rules:
