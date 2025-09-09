@@ -1,5 +1,6 @@
 import os
-from typing import Dict, Any, Literal
+from typing import Dict, Any
+import json
 from dotenv import load_dotenv
 from langchain.output_parsers import PydanticOutputParser
 from .llm_factory import get_groq_llm
@@ -8,43 +9,29 @@ from .llm_factory import get_groq_llm
 load_dotenv()
 
 # Import the correct, mode-specific prompts
-from prompts.select_strategy_prompt import select_strategy_prompt
-from prompts.assistant_planner_prompt import assistant_planner_prompt
-from models.planning import PlanningResult, ConversationStrategy
+from graph.vee_ir import load_prompt
+from langchain_core.prompts import ChatPromptTemplate
+from models.planning import ConversationStrategy
 
-def get_planning_chain(mode: Literal["bestie", "assistant"]):
-    """Create a mode-aware planning chain with Groq LLM."""
-    if mode == "bestie":
-        prompt = select_strategy_prompt
-        print("---USING BESTIE PLANNER (Vee's Heart & Mind)---")
-    else:  # assistant mode
-        prompt = assistant_planner_prompt
-        print("---USING ASSISTANT PLANNER---")
+def get_planning_chain():
+    """Creates the planning chain for the Bestie persona."""
+    prompt_template = load_prompt('bestie/planner_prompt.md')
+    prompt = ChatPromptTemplate.from_template(prompt_template)
+    print("---USING BESTIE PLANNER (prompts/bestie/planner_prompt.md)---")
 
-    model = get_groq_llm()
-    if mode == "bestie":
-        parser = PydanticOutputParser(pydantic_object=ConversationStrategy)
-    else: # assistant
-        parser = PydanticOutputParser(pydantic_object=PlanningResult)
+    model = get_groq_llm(model_name="moonshotai/kimi-k2-instruct")
+    parser = PydanticOutputParser(pydantic_object=ConversationStrategy)
 
-    chain = prompt | model | parser
-    return chain
+    return prompt | model | parser
 
-def plan_next_move(mode: str, sensing: Dict[str, Any], conversation_history: str, latest_user_message: str) -> Dict[str, Any]:
-    """Plan the next conversation move based on the selected mode."""
-    planning_chain = get_planning_chain(mode)
+def plan_next_move(sensing: Dict[str, Any], conversation_history: str) -> Dict[str, Any]:
+    """Plans the next conversational move for the Bestie persona."""
+    planning_chain = get_planning_chain()
     
-    # Prepare inputs based on the mode
-    if mode == "bestie":
-        input_data = {
-            "sensing": sensing,
-            "conversation_history": conversation_history or "(none)"
-        }
-    else: # assistant
-        input_data = {
-            "latest_user_message": latest_user_message,
-            "conversation_history": conversation_history or "(none)"
-        }
+    input_data = {
+        "sensing_data": json.dumps(sensing, indent=2),
+        "conversation_history": conversation_history or "(none)"
+    }
 
     try:
         result = planning_chain.invoke(input_data)
@@ -52,11 +39,10 @@ def plan_next_move(mode: str, sensing: Dict[str, Any], conversation_history: str
     except Exception as e:
         print(f"Error in plan_next_move: {e}")
         # Fallback response
-        high_emotion = (sensing.get("uncertainty", 0) > 0.45) or \
-                      any(e.get("score", 0) > 0.75 for e in sensing.get("emotions", []))
         return {
-            "strategy": "reflect",
-            "question": None,
-            "high_emotion": high_emotion,
-            "notes": "Error in planning - using fallback strategy"
+            "strategy_note": "Default to a gentle, open-ended response due to an error.",
+            "response_components": [
+                {"type": "validate", "focus": "the user's feelings"},
+                {"type": "ask_open_question", "focus": "how they are doing"}
+            ]
         }

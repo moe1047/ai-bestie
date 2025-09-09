@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage
 from .state import VeeState
 from .nodes import (
     ingest_node, safety_triage_node, sense_text_node, mode_decider_node, 
-    bestie_drafter_node, buttons_node, persist_assistant_node, 
+    bestie_planner_node, bestie_drafter_node, buttons_node, persist_assistant_node, 
     vee_information_guardian
 )
 from .edges import mode_decider_edge
@@ -29,6 +29,7 @@ def build_graph(checkpointer):
 
     # Expertise and Persona nodes
     workflow.add_node("vee_information_guardian", vee_information_guardian)
+    workflow.add_node("bestie_planner", bestie_planner_node)
     workflow.add_node("bestie_drafter", bestie_drafter_node)
 
     # Finalization nodes
@@ -50,9 +51,12 @@ def build_graph(checkpointer):
         mode_decider_edge,
         {
             "assistant": "vee_information_guardian",  # Assistant mode uses the IR agent
-            "bestie": "bestie_drafter",          # Bestie mode goes direct to drafting
+            "bestie": "bestie_planner",          # Bestie mode goes to the new dynamic planner
         }
     )
+
+    # Add edge from the new planner to the drafter
+    workflow.add_edge("bestie_planner", "bestie_drafter")
 
     # Converge paths to final steps
     workflow.add_edge("vee_information_guardian", "persist_assistant")  # End assistant flow here

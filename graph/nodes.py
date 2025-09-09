@@ -8,8 +8,13 @@ from llms.sensing import sense
 from llms.planner import plan_next_move
 from llms.drafter import draft
 from llms.mode_decider import get_mode_decider_chain
+from langchain_core.output_parsers import PydanticOutputParser
+from llms.llm_factory import get_groq_llm
+from models.bestie import BestiePlan
+from .vee_ir import load_prompt
 import json
 import re
+from datetime import datetime
 
 # Import the Vee IR graph builder and its state
 from .vee_ir import build_graph as build_vee_ir_graph, VeeIRState as VeeIRGraphState
@@ -101,22 +106,6 @@ def mode_decider_node(state: VeeState) -> VeeState:
     state["mode"] = mode
     return state
 
-def plan_next_move_node(state: VeeState) -> VeeState:
-    """Runs the appropriate planner based on the mode stored in the state."""
-    print("\n--- 5. PLAN NEXT MOVE NODE ---")
-    recent_msgs = state["messages"][-5:]
-    conversation_history = get_buffer_string(recent_msgs)
-    mode = state.get("mode", "bestie")
-    latest_user_message = state.get("last_user_text", "")
-
-    state["plan"] = plan_next_move(
-        mode=mode,
-        sensing=state["sensing"],
-        conversation_history=conversation_history,
-        latest_user_message=latest_user_message
-    )
-    print(f"Planning complete. Plan created for mode: {state.get('mode')}. Plan content: {str(state.get('plan', {}))[:100]}...\n")
-    return state
 
 # 2. Expertise & Persona Nodes (Branched)
 # -------------------------------------------------------------------------
@@ -157,28 +146,56 @@ async def vee_information_guardian(state: VeeState) -> VeeState:
 
     return state
 
-# Bestie Mode Node
-def bestie_drafter_node(state: dict) -> dict:
-    """Generates a response using the bestie persona ('Vee's Voice')."""
-    print("\n--- 6b. BESTIE DRAFTER NODE ---")
-    recent_msgs = state["messages"][-5:]
-    formatted_messages = _get_formatted_messages(recent_msgs)
+# Bestie Mode Nodes
+def bestie_planner_node(state: VeeState) -> VeeState:
+    """Generates a dynamic conversational plan for the Bestie persona."""
+    print("\n--- 5b. BESTIE PLANNER NODE ---")
     
-    # Extract the core content seed from the plan to provide cleaner context
-    plan_object = state.get("plan", {})
-    content_seed = plan_object.get("content_seed", "")
-
-    state["draft"] = draft(
-        state["last_user_text"],
-        state["sensing"],
-        content_seed,  # Pass the clean content seed instead of the raw plan
-        formatted_messages
+    # Delegate planning to the centralized plan_next_move function
+    plan = plan_next_move(
+        sensing=state.get("sensing", {}),
+        conversation_history=get_buffer_string(state.get("messages", [])[-5:])
     )
-    print(f"Bestie drafting complete. Draft: '{state.get('draft', '')[:50]}...'\n")
+    
+    state["bestie_plan"] = plan
+    print(f"Bestie planning complete. Strategy: {plan.get('strategy_note', 'N/A')}")
+    
     return state
+
+def bestie_drafter_node(state: VeeState) -> VeeState:
+    """Generates a response using the bestie persona ('Vee's Voice') based on the dynamic plan."""
+    print("\n--- 6b. BESTIE DRAFTER NODE ---")
+    
+    llm = get_groq_llm(model_name="moonshotai/kimi-k2-instruct", temperature=0.7)
+    drafter_prompt = load_prompt('bestie/drafter_prompt.md')
+
+    # Prepare the input for the drafter
+    plan = state.get("bestie_plan", {})
+    plan_str = json.dumps(plan, indent=2)
+    conversation_history = get_buffer_string(state.get("messages", [])[-5:])
+
+    # Get current time information
+    now = datetime.now()
+    current_time = now.strftime("%I:%M %p")
+    current_date = now.strftime("%Y-%m-%d")
+    current_day = now.strftime("%A")
+
+    prompt = drafter_prompt.format(
+        plan=plan_str,
+        conversation_history=conversation_history,
+        current_time=current_time,
+        current_date=current_date,
+        current_day=current_day
+    )
+
+    response = llm.invoke(prompt)
+    state["draft"] = response.content.strip().strip('"')
+    print(f"Bestie drafting complete. Draft: '{state.get('draft', '')[:50]}...'")
+
+    return state
+
 # 3. Finalization Nodes (Converged)
 # -------------------------------------------------------------------------
-
 
 def buttons_node(state: dict) -> dict:
     """Loads a default set of UI buttons into the state."""

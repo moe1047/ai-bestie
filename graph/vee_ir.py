@@ -48,7 +48,7 @@ def load_prompt(file_name: str) -> str:
     # Assumes vee_ir.py is in ai-bestie/graph, and prompts are in ai-bestie/prompts/vee_ir
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # This path goes up one level from 'graph' and then into 'prompts/vee_ir'
-    prompt_path = os.path.join(current_dir, '..', 'prompts', 'vee_ir', file_name)
+    prompt_path = os.path.join(current_dir, '..', 'prompts', file_name)
     try:
         with open(prompt_path, 'r') as f:
             return f.read()
@@ -56,10 +56,10 @@ def load_prompt(file_name: str) -> str:
         # A fallback or more robust error handling could be implemented here
         return f"Error: Prompt file '{file_name}' not found."
 
-CLASSIFIER_PROMPT = load_prompt('classifier_prompt.md')
-UNIFIED_GOAL_EXTRACTOR_PROMPT = load_prompt('unified_goal_extractor_prompt.md')
-PLANNER_PROMPT = load_prompt('planner_prompt.md')
-KNOWLEDGE_GENERATOR_PROMPT = load_prompt('knowledge_generator_prompt.md')
+CLASSIFIER_PROMPT = load_prompt('vee_ir/classifier_prompt.md')
+UNIFIED_GOAL_EXTRACTOR_PROMPT = load_prompt('vee_ir/unified_goal_extractor_prompt.md')
+PLANNER_PROMPT = load_prompt('vee_ir/planner_prompt.md')
+KNOWLEDGE_GENERATOR_PROMPT = load_prompt('vee_ir/knowledge_generator_prompt.md')
 
 # ===============================
 # LLM Client
