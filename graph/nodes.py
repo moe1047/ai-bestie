@@ -153,7 +153,7 @@ def bestie_planner_node(state: VeeState) -> VeeState:
     
     # Delegate planning to the centralized plan_next_move function
     user_name = "Agent Mo"
-    user_context = ""
+    user_context = "user has been working hard building you the best AI bestie ever vee which is you"
 
     plan = plan_next_move(
         sensing=state.get("sensing", {}),
@@ -181,7 +181,7 @@ def bestie_drafter_node(state: VeeState) -> VeeState:
 
     # Get user profile information
     user_name = "Agent Mo"
-    user_context = ""
+    user_context = "user has been working hard building you the best AI bestie ever vee which is you"
 
     # Get current time information
     now = datetime.now()
