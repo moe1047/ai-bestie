@@ -24,13 +24,15 @@ def get_planning_chain():
 
     return prompt | model | parser
 
-def plan_next_move(sensing: Dict[str, Any], conversation_history: str) -> Dict[str, Any]:
+def plan_next_move(sensing: Dict[str, Any], conversation_history: str, user_name: str, user_context: str) -> Dict[str, Any]:
     """Plans the next conversational move for the Bestie persona."""
     planning_chain = get_planning_chain()
     
     input_data = {
         "sensing_data": json.dumps(sensing, indent=2),
-        "conversation_history": conversation_history or "(none)"
+        "conversation_history": conversation_history or "(none)",
+        "user_name": user_name,
+        "user_context": user_context
     }
 
     try:

@@ -75,7 +75,7 @@ def mode_decider_node(state: VeeState) -> VeeState:
 
     # Prepare the input for the chain
     sensing_data = json.dumps(state.get("sensing", {}), indent=2)
-    conversation_history = "\n".join([f"{msg.type}: {msg.content}" for msg in state.get("messages", [])[-5:]])
+    conversation_history = get_buffer_string(state.get("messages", [])[-5:])
     latest_user_message = state.get("last_user_text", "")
 
     input_data = f"""Sensing Data:
@@ -152,9 +152,14 @@ def bestie_planner_node(state: VeeState) -> VeeState:
     print("\n--- 5b. BESTIE PLANNER NODE ---")
     
     # Delegate planning to the centralized plan_next_move function
+    user_name = "Agent Mo"
+    user_context = ""
+
     plan = plan_next_move(
         sensing=state.get("sensing", {}),
-        conversation_history=get_buffer_string(state.get("messages", [])[-5:])
+        conversation_history=get_buffer_string(state.get("messages", [])[-5:]),
+        user_name=user_name,
+        user_context=user_context
     )
     
     state["bestie_plan"] = plan
@@ -174,6 +179,10 @@ def bestie_drafter_node(state: VeeState) -> VeeState:
     plan_str = json.dumps(plan, indent=2)
     conversation_history = get_buffer_string(state.get("messages", [])[-5:])
 
+    # Get user profile information
+    user_name = "Agent Mo"
+    user_context = ""
+
     # Get current time information
     now = datetime.now()
     current_time = now.strftime("%I:%M %p")
@@ -185,11 +194,13 @@ def bestie_drafter_node(state: VeeState) -> VeeState:
         conversation_history=conversation_history,
         current_time=current_time,
         current_date=current_date,
-        current_day=current_day
+        current_day=current_day,
+        user_name=user_name,
+        user_context=user_context
     )
 
     response = llm.invoke(prompt)
-    state["draft"] = response.content.strip().strip('"')
+    state["draft"] = response.content.strip().strip('"').replace("—", "...")
     print(f"Bestie drafting complete. Draft: '{state.get('draft', '')[:50]}...'")
 
     return state
