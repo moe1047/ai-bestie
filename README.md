@@ -1,20 +1,24 @@
-# Vee: The Dual-Mode AI Companion 🧠❤️
+# Vee: An Empathetic AI Companion 🧠❤️
 
-Vee is a next-generation AI companion built on a sophisticated, dual-mode architecture. It seamlessly transitions between a deeply empathetic **Bestie** and a hyper-competent **Assistant**, providing exactly the right kind of support, whether you need a friend to listen or an expert to solve a problem.
+Vee is a next-generation AI companion built on a sophisticated, state-aware architecture. Powered by LangGraph, Vee uses a dynamic workflow and a structured personality framework to deliver conversations that are not just intelligent, but genuinely empathetic and attuned to you.
 
-Powered by LangGraph, Vee uses a dynamic, state-aware workflow to deliver conversations that are not just intelligent, but genuinely attuned to you.
+## Recent Updates
+
+- **New Personality Framework**: Implemented a more robust and structured personality model for more consistent and nuanced interactions.
+- **Stability Fixes**: Resolved critical bugs related to state management and timezone handling, significantly improving application performance and reliability.
 
 ## Core Features
 
 Vee is more than just a chatbot; it's a versatile companion designed to handle a wide range of needs.
 
-- **Dual-Mode Personality**:
-    - **Bestie Mode**: Offers empathetic, supportive, and non-judgmental conversation when you need a friend.
-    - **Assistant Mode**: Provides clear, factual, and well-researched answers to your questions.
+- **Structured Personality Framework**:
+    - Vee's personality is defined by a clear and powerful framework that separates stable traits from dynamic moods and contextual stances.
+    - **Core Traits**: Defines the base personality (e.g., Openness, Agreeableness).
+    - **Current Mood**: Adapts in real-time to the user's emotional state (e.g., empathetic, playful, focused).
+    - **Relationship Stance**: Adjusts its role based on the conversational context (e.g., supporter, collaborator, mentor).
 
-- **Structured & Readable Answers**:
-    - When in Assistant mode, Vee uses a sophisticated, multi-step graph (`Vee Information Guardian`) to research topics.
-    - It delivers well-structured answers with clear headers, emojis, and proper formatting, making them easy to read on Telegram.
+- **Deeply Context-Aware**:
+    - Vee analyzes the user's emotional state, intent, and dialogue act (`perception_node`) to dynamically adjust its mood and stance, ensuring its responses are always appropriate.
 
 - **Context-Aware Conversation**:
     - Vee remembers the last few turns of your conversation, ensuring its responses are relevant and follow the flow of dialogue.
@@ -28,56 +32,28 @@ Vee is more than just a chatbot; it's a versatile companion designed to handle a
 
 ## Technical Architecture
 
-Vee's intelligence is orchestrated by a modular LangGraph workflow that ensures the right tools are used at the right time.
+Vee's intelligence is orchestrated by a streamlined, modular LangGraph workflow.
 
 ```mermaid
 graph TD
-    A[User Input] --> B(ingest_node);
-    B --> C(safety_triage_node);
-    C --> D(sense_text_node);
-    D --> E{mode_decider_node};
+    A[User Input] --> B(persist_user_message);
+    B --> C(perception_node);
+    C --> D(vee_self_node);
+    D --> E[Final Output];
 
-    E -- bestie --> F(bestie_planner_node);
-    F --> G(bestie_drafter_node);
-    G --> H(load_buttons_node);
-    H --> I(persist_assistant_node);
-    I --> J[Final Output];
-
-    E -- assistant --> K(vee_information_guardian);
-    K --> I;
-
-    subgraph Core Pipeline
+    subgraph Vee Workflow
         B;
         C;
         D;
-        E;
-    end
-
-    subgraph Bestie Mode
-        F;
-        G;
-    end
-
-    subgraph Assistant Mode
-        K;
-    end
-
-    subgraph Finalization
-        H;
-        I;
     end
 ```
 
 ### Key Components
 
-- **Vee Information Guardian Subgraph**: A self-contained, multi-step graph for advanced information retrieval. It follows a clear process:
-    1.  **Classify Intent**: Understands the user's goal (e.g., Learn, Solve).
-    2.  **Extract Goal**: Breaks down the query into actionable sub-tasks.
-    3.  **Plan Response**: Creates a structured plan for the generator.
-    4.  **Generate Knowledge**: Synthesizes the information into a clear, formatted answer.
-- **Modular Prompt System**: All prompts for the Information Guardian are externalized into markdown files, making them easy to update and manage without changing the application code.
-- **Stateful Routing**: The graph uses a conditional edge (`mode_decider_edge`) that reads the `mode` from the `VeeState` to direct the workflow to the appropriate subgraph or node.
-- **Persona Drafters**: A dedicated `bestie_drafter` node ensures that the final response has the perfect tone and personality when Vee is in "Bestie Mode".
+- **`persist_user_message`**: Saves the user's message to the database, ensuring a persistent conversation history.
+- **`perception_node`**: The core of Vee's awareness. It analyzes the user's message to extract emotional tone, intent, and other key pragmatic signals.
+- **`vee_self_node`**: The heart of the persona. This node takes the rich context from the `perception_node` and the new `personality_profile` to generate a deeply empathetic and context-aware response.
+- **Structured Personality Prompt**: The `vee_self.md` prompt now contains a sophisticated `<personality_profile>` that guides the LLM's behavior, separating stable traits from dynamic moods and contextual stances.
 
 ## Getting Started with Docker
 
