@@ -30,12 +30,42 @@ Vee is more than just a chatbot; it's a versatile companion designed to handle a
 
 Vee's intelligence is orchestrated by a modular LangGraph workflow that ensures the right tools are used at the right time.
 
-```
-[User Input] -> Ingest -> Safety Check -> Perception (Sense Emotion)
-              |
-              +--> Mode Decider --+--> [Bestie Mode] -> Bestie Drafter -> [Output]
-                                  |
-                                  +--> [Assistant Mode] -> Vee Information Guardian -> [Output]
+```mermaid
+graph TD
+    A[User Input] --> B(ingest_node);
+    B --> C(safety_triage_node);
+    C --> D(sense_text_node);
+    D --> E{mode_decider_node};
+
+    E -- bestie --> F(bestie_planner_node);
+    F --> G(bestie_drafter_node);
+    G --> H(load_buttons_node);
+    H --> I(persist_assistant_node);
+    I --> J[Final Output];
+
+    E -- assistant --> K(vee_information_guardian);
+    K --> I;
+
+    subgraph Core Pipeline
+        B;
+        C;
+        D;
+        E;
+    end
+
+    subgraph Bestie Mode
+        F;
+        G;
+    end
+
+    subgraph Assistant Mode
+        K;
+    end
+
+    subgraph Finalization
+        H;
+        I;
+    end
 ```
 
 ### Key Components

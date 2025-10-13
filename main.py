@@ -8,11 +8,12 @@ from graph.minimal_mind_agents import (
     web_search_agent,
     fact_checker_agent,
     responder_agent,
-    supervisor_node
+    supervisor_node,
 )
 
 # Load environment variables
 load_dotenv()
+
 
 # Define the state for our minimal mind
 class MinimalMindState(TypedDict):
@@ -21,6 +22,7 @@ class MinimalMindState(TypedDict):
     search_results: List[dict]
     analysis: str
     next_agent: str
+
 
 def get_minimal_mind_graph():
     """Builds the graph for the Minimal Viable Mind."""
@@ -54,20 +56,23 @@ def get_minimal_mind_graph():
     minimal_mind_graph = graph.compile()
     return minimal_mind_graph
 
+
 async def run_graph():
     """Runs the Minimal Viable Mind graph and streams intermediate states for debugging."""
     graph = get_minimal_mind_graph()
-    
+
     # Get the current date
     current_date = datetime.date.today().isoformat()
 
     # Use astream to get intermediate steps. We'll merge the states
     # to build up the final state object, which will contain all the fields.
     final_state = {}
-    async for state in graph.astream({
-        "query": "Who is the current president of the United States?",
-        "current_date": current_date
-    }):
+    async for state in graph.astream(
+        {
+            "query": "Who is the current president of the United States?",
+            "current_date": current_date,
+        }
+    ):
         print("---STREAM---")
         for key, value in state.items():
             print(f"Node: {key}")
@@ -77,7 +82,8 @@ async def run_graph():
 
     # The final response is in the 'responder' key of the last state object.
     print("---FINAL RESPONSE---")
-    print(final_state.get('responder', 'No final response generated.'))
+    print(final_state.get("responder", "No final response generated."))
+
 
 if __name__ == "__main__":
     asyncio.run(run_graph())
