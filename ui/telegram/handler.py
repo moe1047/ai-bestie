@@ -74,10 +74,12 @@ class TelegramHandler:
             # 1. Get User, Session, and Message History from Cache or DB
             if chat_id in self.session_cache:
                 cached_data = self.session_cache[chat_id]
+                cached_data = self.session_cache[chat_id]
                 user = cached_data["user"]
                 session = cached_data["session"]
-                messages = cached_data.get("messages", [])
-                logger.info(f"Loaded user, session, and {len(messages)} messages from cache for chat {chat_id}.")
+                # Always fetch a fresh, limited message history from the DB
+                messages = crud.get_recent_messages(session.id)
+                logger.info(f"Loaded user and session from cache. Fetched {len(messages)} recent messages from DB for chat {chat_id}.")
             else:
                 user = crud.get_or_create_user(chat_id, name="User")
                 session = crud.get_active_session(user.id)

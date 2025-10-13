@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 # Use the model specified by the user
-groq_fast = ChatGroq(model="moonshotai/kimi-k2-instruct-0905", temperature=0)
+groq_fast = ChatGroq(model="moonshotai/kimi-k2-instruct-0905", temperature=0.1)
 
 USER_PROMPT_TEMPLATE = """<context:inputs>
 {context_json}

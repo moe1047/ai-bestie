@@ -3,7 +3,7 @@ import os
 from contextlib import contextmanager
 import json
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.messages.utils import get_buffer_string
 from . import schemas
@@ -99,7 +99,7 @@ def get_active_session(user_id: int, timeout_hours: int = 24) -> Optional[schema
             last_activity_time = session.start_time
 
         # If the last activity was too long ago, expire the session.
-        if datetime.now() - last_activity_time > timedelta(hours=timeout_hours):
+        if datetime.now(timezone.utc) - last_activity_time > timedelta(hours=timeout_hours):
             end_session(session.id)
             return None  # Return None to signal that a new session should be created.
 
@@ -120,7 +120,7 @@ def end_session(session_id: int):
     with get_db_connection() as conn:
         cursor = conn.cursor()
         query = "UPDATE session SET end_time = ? WHERE id = ?"
-        cursor.execute(query, (datetime.now().isoformat(), session_id))
+        cursor.execute(query, (datetime.now(timezone.utc).isoformat(), session_id))
         conn.commit()
         print(f"Session {session_id} has been ended.")
 
