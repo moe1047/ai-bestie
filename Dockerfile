@@ -18,5 +18,8 @@ RUN poetry config virtualenvs.create false && poetry install --no-root --only ma
 COPY . .
 
 # Command to run the application
+# Set up the database
+RUN python memory/setup.py
+
 # Command to run the application using the telegram bot script
 CMD ["python", "run_telegram_bot.py"]
