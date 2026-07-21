@@ -97,7 +97,6 @@ The production setup uses Nginx with SSL certificates from Let's Encrypt, manage
 
 1.  **Server Setup**:
     - Get a VPS and install Docker and Docker Compose.
-    - Point your domain(s) (e.g., `heyyvee.com`, `perceive.heyyvee.com`) to your VPS's public IP address via an `A` record.
 
 2.  **Run the Application**:
     On your VPS, run the following command to start the application using the production Nginx configuration:
@@ -108,7 +107,7 @@ The production setup uses Nginx with SSL certificates from Let's Encrypt, manage
 3.  **Obtain SSL Certificate**:
     With the containers running, execute the Certbot command to get your SSL certificate. This command requests a certificate for multiple domains.
     ```bash
-    docker-compose run --rm certbot certonly --webroot --webroot-path /var/www/certbot --email your-email@example.com --agree-tos --no-eff-email -d heyyvee.com -d perceive.heyyvee.com
+    docker-compose run --rm certbot certonly --webroot --webroot-path /var/www/certbot --email your-email@example.com --agree-tos --no-eff-email -d abc.com -d abs.abc.com
     ```
 
 4.  **Restart Nginx**:
@@ -116,7 +115,7 @@ The production setup uses Nginx with SSL certificates from Let's Encrypt, manage
     ```bash
     docker-compose restart nginx
     ```
-    Your application is now live and secure at `https://heyyvee.com`.
+    Your application is now live
 
 ## Dependencies
 
